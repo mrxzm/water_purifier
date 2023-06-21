@@ -289,6 +289,7 @@ void stop(void)
 // 睡眠模式 等待高压开关唤醒
 void sleep(void)
 {
+	GPIO_SetBits(GPIOC,GPIO_Pin_13);
 	// 停止计数器
 	TIM_Cmd(TIM3, DISABLE);
 	model = 3;
@@ -342,6 +343,15 @@ void sleep(void)
 	PWR_WakeUpPinCmd(ENABLE);                 //使能唤醒管脚功能
 	PWR_EnterSTOPMode(PWR_Regulator_LowPower,PWR_STOPEntry_WFI);
 	// PWR_EnterSTANDBYMode();                 //进入待命（STANDBY）模式
+	
+	// 在唤醒事件发生后，需要重新开启USART1和GPIOA口时钟
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA|RCC_APB2Periph_USART1,ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR, DISABLE);//重新失能PWR	
+	SystemInit();	//退出停止模式要重新初始化总线时钟
+	Usart1_Init(9600);
+	time3_init();
+	GPIO_ResetBits(GPIOC,GPIO_Pin_13);
+	model = 0;
 }
 
 void EXTI4_IRQHandler(void)
@@ -357,7 +367,6 @@ void EXTI4_IRQHandler(void)
 int main(void)
 {
 	Usart1_Init(9600);  //波特率
-	
 	
 	
   NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);  //设置NVIC中断分组2:2位抢占优先级，2位响应优先级
@@ -391,6 +400,7 @@ int main(void)
 		else if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_6) != 0 && (model == 5 || model == 6) )
 		{
 			stop_pump();
+			// 触发错误等待定时
 			model -= 4;
 			run_time += time_count;
 			time_reset();
@@ -417,53 +427,54 @@ int main(void)
 			run_time += time_count;
 			time_reset();
 		}
-		else if(model == 1)
-		{
-			run_wait_time = time_count;
-			// 5秒后低压开关仍然未导通 判断为低压开关故障
-			if(run_wait_time >= 5){
-				stop_pump();
-				stop();
-				time_reset();
-				run_wait_time = 0;
-				model = 4;
-			}
-		}
-		
-		//清洗模式
-		if(model == 0)
+		else if(model == 0) //清洗模式读条
 		{
 			// 当处于停止模式时查看
 			if(time_count == 1800) //60 1分钟 1800 30分钟 2400 40分钟 
 			{
 				run_clean();
 				time_reset();
+				run_wait_time = 0;
 			}
 		}
-		else if(model == 6)
+		else if(model == 6) // 正在清洗
 		{
-			// 当前清洗模式 15秒后关闭机器 后睡眠
+			// 当前清洗模式 清洗15秒后关闭机器后睡眠
 			if(time_count > 15)
 			{
 				stop_pump();
 				stop();
 				time_count = 0;
 				delay_ms(20);
-				GPIO_SetBits(GPIOC,GPIO_Pin_13);
 				sleep();
-				// 在唤醒事件发生后，需要重新开启USART1和GPIOA口时钟
-				RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA|RCC_APB2Periph_USART1,ENABLE);
-				RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR, DISABLE);//重新失能PWR	
-				SystemInit();	//退出停止模式要重新初始化总线时钟
-				Usart1_Init(9600);
-				time3_init();
-				GPIO_ResetBits(GPIOC,GPIO_Pin_13);
-				model = 0;
 			}
 		}
-		
-		// 低压开关故障模式
-		if(model == 4)
+		else if(model == 1) // 低压开关或进水水龙头故障
+		{
+			run_wait_time = time_count;
+			// 5秒后低压开关仍然未导通
+			if(run_wait_time >= 5){
+				stop_pump();
+				stop();
+				time_count = 0;
+				run_wait_time = 0;
+				model = 4;
+			}
+		}
+		else if(model == 2) // 低压开关故障或无回流清洗水
+		{
+			run_wait_time = time_count;
+			// 2秒后低压开关仍然未导通，无需执行清理程序 直接睡眠
+			if(run_wait_time >= 2){
+				stop_pump();
+				stop();
+				time_reset();
+				run_wait_time = 0;
+				delay_ms(20);
+				sleep();
+			}
+		}
+		else if(model == 4) // 低压开关故障模式
 		{
 			// led 1秒一次闪烁
 			if(time_count % 2 == 0)
@@ -477,6 +488,11 @@ int main(void)
 			// 退出
 			if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_6) == 0){
 				model = 0;
+				GPIO_ResetBits(GPIOC,GPIO_Pin_13);
+			}
+			// 关闭进水开关并且闪烁时间超过10秒 直接睡眠
+			if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4) != 0 && time_count > 10){
+				sleep();
 			}
 		}
 		
