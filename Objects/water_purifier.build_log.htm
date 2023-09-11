@@ -21,22 +21,26 @@ Target DLL:      UL2CM3.DLL V1.162.16.0
 Dialog DLL:      TCM.DLL V1.36.2.0
  
 <h2>Project:</h2>
-e:\stm32\water_purifier\water_purifier.uvprojx
+E:\stm32\water_purifier\water_purifier.uvprojx
 Project File Date:  06/13/2023
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 6 (build 750)', folder: 'D:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'Target 1'
 compiling main.c...
-USER\main.c(211): warning:  #177-D: variable "NVIC_InitStructure"  was declared but never referenced
+USER\main.c(13): warning:  #3170-D: use of a const variable in a constant expression is nonstandard in C
+  int key4_status_array[key_filtration];
+USER\main.c(14): warning:  #3170-D: use of a const variable in a constant expression is nonstandard in C
+  int key6_status_array[key_filtration];
+USER\main.c(207): warning:  #177-D: variable "NVIC_InitStructure"  was declared but never referenced
   	NVIC_InitTypeDef NVIC_InitStructure;
-USER\main.c(500): warning:  #111-D: statement is unreachable
-  		return 1;
-USER\main.c: 2 warnings, 0 errors
+USER\main.c(508): warning:  #111-D: statement is unreachable
+  	return 1;
+USER\main.c: 4 warnings, 0 errors
 linking...
-Program Size: Code=4328 RO-data=268 RW-data=36 ZI-data=1636  
+Program Size: Code=3660 RO-data=268 RW-data=40 ZI-data=1672  
 FromELF: creating hex file...
-".\Objects\water_purifier.axf" - 0 Error(s), 2 Warning(s).
+".\Objects\water_purifier.axf" - 0 Error(s), 4 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -50,7 +54,7 @@ Package Vendor: Keil
   C:\Users\mrxzm\AppData\Local\Arm\Packs\Keil\STM32F1xx_DFP\1.0.5\Device\Include
 
 <h2>Collection of Component Files used:</h2>
-Build Time Elapsed:  00:00:01
+Build Time Elapsed:  00:00:00
 </pre>
 </body>
 </html>

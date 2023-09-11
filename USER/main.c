@@ -3,10 +3,23 @@
 // #include <stdio.h>
 
 
-uint32_t time_count = 0; // 计时秒
+uint32_t time_100_millisecond = 0, time_count = 0; // 计时秒
 uint32_t run_time = 0; // 总运行时间秒
 uint32_t run_wait_time = 0; // 运行等待时间
 uint32_t model = 0; // 当前运行状态 0 停止 1 即将正常制水 2即将清洗模式 3休眠模式 4低压开关故障 5正在制水 6正在清洗
+
+// 初始化上电时按键状态
+const int key_filtration =5; // 过滤精度
+int key4_status_array[key_filtration];
+int key6_status_array[key_filtration];
+
+// 初始化按键状态
+void init_key_status_array(){
+	for (int index = 0;index<key_filtration;index++){
+		key4_status_array[index] = 1;
+		key6_status_array[index] = 1;
+	}
+}
 
 //微秒级的延时
 void delay_us(uint32_t delay_us)
@@ -38,12 +51,9 @@ void delay_ms(uint16_t delay_ms)
 void led_init13(void)
 {
   GPIO_InitTypeDef     GPIO_InitStructure;
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC,ENABLE);
-	
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_13;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;//
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	
   GPIO_Init(GPIOC, &GPIO_InitStructure);
 }
 
@@ -52,14 +62,11 @@ void led_init13(void)
 /*高压开关初始化函数*/
 void KEY_Init4(void)
 {
-	//1.打开控制GPIOA的时钟(APB2)
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-	GPIO_PinRemapConfig(GPIO_Remap_SWJ_Disable, ENABLE);
 	//2.配置结构体	
 	GPIO_InitTypeDef key_init;
-	key_init.GPIO_Pin   = GPIO_Pin_4;      	//GPIO 5引脚
+	key_init.GPIO_Pin   = GPIO_Pin_4;      	//GPIO 4引脚
 	key_init.GPIO_Mode  = GPIO_Mode_IPU; 	//GPIO_Mode_IPU上拉输入1
-	
+	key_init.GPIO_Speed = GPIO_Speed_50MHz;
 	//3.对成员进行初始化
 	GPIO_Init(GPIOB, &key_init);
 }
@@ -67,26 +74,20 @@ void KEY_Init4(void)
 /*低压开关初始化函数*/
 void KEY_Init6(void)
 {
-	//1.打开控制GPIOA的时钟(APB2)
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-	
 	//2.配置结构体	
 	GPIO_InitTypeDef key_init;
 	key_init.GPIO_Pin   = GPIO_Pin_6;      	//GPIO 6引脚
-	key_init.GPIO_Mode  = GPIO_Mode_IPU; 	//下拉输入
+	key_init.GPIO_Speed = GPIO_Speed_50MHz;
+	key_init.GPIO_Mode  = GPIO_Mode_IPU; 	//上拉输入
 	
 	//3.对成员进行初始化
 	GPIO_Init(GPIOB, &key_init);
 }
 
-
-
 // 进水电磁阀 7
 void valve_init7(void)//对继电器初始化，即对PB7口初始化
 {
   GPIO_InitTypeDef     GPIO_InitStructure;
-  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB,ENABLE);
-	
   GPIO_InitStructure.GPIO_Pin = GPIO_Pin_7;
   GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;//
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
@@ -96,9 +97,6 @@ void valve_init7(void)//对继电器初始化，即对PB7口初始化
 // 冲洗电磁阀8
 void valve_init8(void)
 {
-	//打开时钟
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-
 	//配置结构体
 	GPIO_InitTypeDef relay_init;
 	relay_init.GPIO_Pin   = GPIO_Pin_8;			//引脚
@@ -112,9 +110,6 @@ void valve_init8(void)
 // 废水电磁阀9
 void valve_init9(void)
 {
-	//打开时钟
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
-
 	//配置结构体
 	GPIO_InitTypeDef relay_init;
 	relay_init.GPIO_Pin   = GPIO_Pin_9;			//引脚
@@ -128,7 +123,6 @@ void valve_init9(void)
 //PB13 和PB14 是水泵
 void pump_init13(void)
 {
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
 	GPIO_InitTypeDef gpio13;
 	gpio13.GPIO_Pin		=	GPIO_Pin_13;
 	gpio13.GPIO_Mode  = GPIO_Mode_Out_PP;
@@ -137,10 +131,6 @@ void pump_init13(void)
 }
 void pump_init14(void)
 {
-	// 使能 GPIOB 时钟
-  
-	
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
 	GPIO_InitTypeDef gpio14;
 	gpio14.GPIO_Pin		=	GPIO_Pin_14;
 	gpio14.GPIO_Mode  = GPIO_Mode_Out_PP;
@@ -151,38 +141,45 @@ void pump_init14(void)
 // 定时器
 void time3_init(void)
 {
-	// 使能 TIM3 时钟
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
+	// 使能 TIM2 时钟
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 	NVIC_InitTypeDef NVIC_InitTypeDef;
 	
-	// 配置 TIM3 为定时器模式
+	// 配置 TIM2 为定时器模式
 	TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-	TIM_TimeBaseStructure.TIM_Period = 10000 - 1; // 自动重载值
+	TIM_TimeBaseStructure.TIM_Period = 1000 - 1; // 自动重载值
 	TIM_TimeBaseStructure.TIM_Prescaler = 7200 - 1; // 分频器，72MHz / 7200 = 10KHz
 	TIM_TimeBaseStructure.TIM_ClockDivision = TIM_CKD_DIV1;
 	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up; // 上计数
-	TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
+	TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
 	
-	// 配置 TIM3 的中断，并使能更新中断
-	TIM_ITConfig(TIM3, TIM_IT_Update, ENABLE);
-	//NVIC_EnableIRQ(TIM3_IRQn);
-	NVIC_InitTypeDef.NVIC_IRQChannel=TIM3_IRQn;
+	// 配置 TIM2 的中断，并使能更新中断
+	TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+	//NVIC_EnableIRQ(TIM2_IRQn);
+	NVIC_InitTypeDef.NVIC_IRQChannel=TIM2_IRQn;
 	NVIC_InitTypeDef.NVIC_IRQChannelCmd=ENABLE;
 	NVIC_InitTypeDef.NVIC_IRQChannelPreemptionPriority=0;
 	NVIC_InitTypeDef.NVIC_IRQChannelSubPriority=1;
 	NVIC_Init(&NVIC_InitTypeDef);
 
-	// 启动 TIM3
-	TIM_Cmd(TIM3, ENABLE);
+	// 启动 TIM2
+	TIM_Cmd(TIM2, ENABLE);
 }
 
 // 定时器中段入口函数
-void TIM3_IRQHandler(void)
+void TIM2_IRQHandler(void)
 {
-	if(TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET)
+	if(TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
 	{
-		time_count ++;
-		 TIM_ClearITPendingBit(TIM3, TIM_FLAG_Update);
+		int index = time_100_millisecond >= key_filtration ? time_100_millisecond - key_filtration: time_100_millisecond;
+		key4_status_array[index] = GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4);
+		key6_status_array[index] = GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_6);
+		time_100_millisecond ++;
+ 		if(time_100_millisecond >= 10){
+			time_count ++;
+			time_100_millisecond = 0;
+		}
+		TIM_ClearITPendingBit(TIM2, TIM_FLAG_Update);
 	}
 }
 
@@ -190,12 +187,11 @@ void TIM3_IRQHandler(void)
 void time_reset(void)
 {
 	// 停止计数器
-	TIM_Cmd(TIM3, DISABLE);
+	TIM_Cmd(TIM2, DISABLE);
 	time_count = 0;
-	// 重新启动计数器，定时 15 秒
-	TIM_SetCounter(TIM3, 0);
-	TIM_Cmd(TIM3, ENABLE);
-	
+	// 重新启动计数器
+	TIM_SetCounter(TIM2, 0);
+	TIM_Cmd(TIM2, ENABLE);
 }
 
 
@@ -242,6 +238,31 @@ void put_s(uint8_t *s)  //发送字符串函数
 	}
 }
  ////////////////////////////////////////////////////////////
+
+// 获取key4 状态
+int get_key4_status()
+{
+	int status = 0;
+	for (int index = 0;index<key_filtration;index++){
+		status += key4_status_array[index];
+	}
+	if( status == 0){
+		return 0;
+	}
+	return 1;
+}
+// 获取key6 状态
+int get_key6_status()
+{
+	int status = 0;
+	for (int index = 0;index<key_filtration;index++){
+		status += key6_status_array[index];
+	}
+	if( status == 0){
+		return 0;
+	}
+	return 1;
+}
 
 // 运行制水模式
 void run(void)
@@ -291,16 +312,12 @@ void sleep(void)
 {
 	GPIO_SetBits(GPIOC,GPIO_Pin_13);
 	// 停止计数器
-	TIM_Cmd(TIM3, DISABLE);
+	TIM_Cmd(TIM2, DISABLE);
 	model = 3;
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR, ENABLE);  //使能 PWR 外设时钟
 	
-
-// 使能AFIO和EXTI时钟
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO | RCC_APB2Periph_GPIOB, ENABLE);
-	
 	GPIO_InitTypeDef GPIO_InitStruct;
-	GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_4;      	//GPIO 5引脚
+	GPIO_InitStruct.GPIO_Pin   = GPIO_Pin_4;      	//GPIO 4引脚
 	GPIO_InitStruct.GPIO_Mode  = GPIO_Mode_IPU; 	//GPIO_Mode_IPU上拉输入1
 	GPIO_InitStruct.GPIO_Speed=GPIO_Speed_50MHz;//默认即可
 	GPIO_Init(GPIOB,&GPIO_InitStruct);
@@ -346,6 +363,8 @@ void sleep(void)
 	
 	// 在唤醒事件发生后，需要重新开启USART1和GPIOA口时钟
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA|RCC_APB2Periph_USART1,ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
+	GPIO_PinRemapConfig(GPIO_Remap_SWJ_Disable, ENABLE);
 	RCC_APB1PeriphClockCmd(RCC_APB1Periph_PWR, DISABLE);//重新失能PWR	
 	SystemInit();	//退出停止模式要重新初始化总线时钟
 	Usart1_Init(9600);
@@ -362,42 +381,38 @@ void EXTI4_IRQHandler(void)
 	}
 }
 
-
-
 int main(void)
 {
 	Usart1_Init(9600);  //波特率
-	
-	
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_AFIO, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOC,ENABLE);
+	GPIO_PinRemapConfig(GPIO_Remap_SWJ_Disable, ENABLE);
   NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);  //设置NVIC中断分组2:2位抢占优先级，2位响应优先级
 	// 初始化
+	init_key_status_array();
 	led_init13();
 	KEY_Init4(); // 高压开关 压力高时断开 关水
-	KEY_Init6(); // 低压开关 压力低时断开  
+	KEY_Init6(); // 低压开关 压力低时断开
 	valve_init7(); // 4分原进水电磁阀
 	valve_init8(); // 3分水桶进水电磁阀
 	valve_init9(); // 废水电磁阀
 	pump_init13(); // 水泵1
 	pump_init14(); // 水泵2
-	//GPIO_SetBits(GPIOA,GPIO_Pin_5);		//按键设置高电平
-	//GPIO_PinRemapConfig(GPIO_Remap_SWJ_Disable, ENABLE);
 	time3_init();
 	// 开机初始化机器关闭所有操作
-	GPIO_SetBits(GPIOB,GPIO_Pin_4); // 开关默认关闭状态
-	GPIO_SetBits(GPIOB,GPIO_Pin_6); // 开关默认关闭
 	GPIO_ResetBits(GPIOC,GPIO_Pin_13);
 	stop();
 	
 	while(1)
 	{
 		// 水泵控制
-		if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_6) == 0 && (model == 1 || model == 2))
+		if(get_key6_status() == 0 && (model == 1 || model == 2))
 		{
 			run_pump();
 			time_reset();
 			model += 4;
 		}
-		else if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_6) != 0 && (model == 5 || model == 6) )
+		else if(get_key6_status() == 1 && (model == 5 || model == 6) )
 		{
 			stop_pump();
 			// 触发错误等待定时
@@ -407,25 +422,50 @@ int main(void)
 		}
 		
 		// 制水模式控制 当前处于 0停止状态 2准备清洗 3睡眠模式 6正在清洗时 都停止启动准备制水模式
-		if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4) == 0 && (model == 0 || model == 2 || model == 3 || model == 6))
+		if(get_key4_status() == 0 && (model == 0 || model == 2 || model == 3 || model == 6))
 		{
-			delay_ms(20); //消抖再次判断是否打开水龙头 
-			if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4) == 0  )
-			{
-				// 运行制水模式
-				put_s("1\r\n");
-				run();
-				time_reset();
-				run_wait_time = 0;
-			}
+			run();
+			time_reset();
 		}
-		else if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4) != 0 && model == 5)
+		else if(get_key4_status() == 1 && model == 5) // 停止制水
 		{
-			put_s("0\r\n");
 			stop_pump();
 			stop();
 			run_time += time_count;
 			time_reset();
+		}
+		
+		else if(model == 1) // 低压开关或进水水龙头故障
+		{
+			if(time_count >= 4){
+				stop_pump();
+				stop();
+				time_reset();
+				model = 4;
+			}
+		}
+		else if(model == 4) // 低压开关故障模式
+		{
+			// led 1秒一次闪烁
+			if(time_count % 2 == 0)
+			{
+				GPIO_SetBits(GPIOC,GPIO_Pin_13);
+			}
+			else
+			{
+				GPIO_ResetBits(GPIOC,GPIO_Pin_13);
+			}
+			// 退出
+			if(get_key6_status() == 0){
+				model = 0;
+				GPIO_ResetBits(GPIOC,GPIO_Pin_13);
+			}
+			// 关闭进水开关并且闪烁时间超过10秒 直接睡眠
+			if(get_key4_status() == 1 && time_count > 15){
+				model = 0;
+				GPIO_ResetBits(GPIOC,GPIO_Pin_13);
+				//sleep();
+			}
 		}
 		else if(model == 0) //清洗模式读条
 		{
@@ -445,57 +485,25 @@ int main(void)
 				stop_pump();
 				stop();
 				time_count = 0;
-				delay_ms(20);
-				sleep();
-			}
-		}
-		else if(model == 1) // 低压开关或进水水龙头故障
-		{
-			run_wait_time = time_count;
-			// 5秒后低压开关仍然未导通
-			if(run_wait_time >= 5){
-				stop_pump();
-				stop();
-				time_count = 0;
-				run_wait_time = 0;
-				model = 4;
+				//sleep();
 			}
 		}
 		else if(model == 2) // 低压开关故障或无回流清洗水
 		{
-			run_wait_time = time_count;
 			// 2秒后低压开关仍然未导通，无需执行清理程序 直接睡眠
-			if(run_wait_time >= 2){
+			if(time_count >= 2){
 				stop_pump();
 				stop();
 				time_reset();
-				run_wait_time = 0;
-				delay_ms(20);
-				sleep();
-			}
-		}
-		else if(model == 4) // 低压开关故障模式
-		{
-			// led 1秒一次闪烁
-			if(time_count % 2 == 0)
-			{
-				GPIO_SetBits(GPIOC,GPIO_Pin_13);
-			}
-			else
-			{
-				GPIO_ResetBits(GPIOC,GPIO_Pin_13);
-			}
-			// 退出
-			if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_6) == 0){
-				model = 0;
-				GPIO_ResetBits(GPIOC,GPIO_Pin_13);
-			}
-			// 关闭进水开关并且闪烁时间超过10秒 直接睡眠
-			if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_4) != 0 && time_count > 10){
-				sleep();
+				
+				//sleep();
 			}
 		}
 		
+		// 3天重置
+		if (time_count > 259200){
+			time_reset();
+		}
 	}
-		return 1;
+	return 1;
 }
